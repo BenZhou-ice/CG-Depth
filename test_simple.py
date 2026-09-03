@@ -32,9 +32,9 @@ def parse_args():
                         default="./pics", help='path to a test image or folder of images')
     parser.add_argument('--ext', type=str,
                         help='image extension to search for in folder',
-                        default="png")
+                        default="jpg")
     parser.add_argument('--model_path', type=str,help='path to a models.pth',
-                        default="../CG-Depth-pretrain-ckpt")
+                        default="./R-MSFM-6-X-GC-Pre/R-MSFM1024-ScConv+WtDown+cga+moga-50/models/weights_10_100500")
     parser.add_argument('--update', type=int,help='iterative update', default=6)
     parser.add_argument("--no_cuda",help='if set, disables CUDA',action='store_true')
     parser.add_argument("--x",help='if set, R-MSFMX',action='store_true', default=True)
@@ -48,7 +48,7 @@ def parse_args():
 
     parser.add_argument("--use_scconv",
                         help="if set, use ScConv",
-                        default=True,
+                        default=False,
                         action="store_true")
 
     parser.add_argument("--use_WtResnet",

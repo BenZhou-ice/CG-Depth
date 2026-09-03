@@ -170,7 +170,7 @@ class ResnetEncoder(nn.Module):
         if self.use_scconv:
             x2 = self.scconv_2(x2)
         elif self.use_dsrconv:
-            x2 = self.dsrconv_1(x2)
+            x2 = self.dsrconv_2(x2)
         self.features.append(x2)
         x3 = self.encoder.layer2(self.features[-1])
         if self.use_WtFusion:
@@ -182,7 +182,7 @@ class ResnetEncoder(nn.Module):
         if self.use_scconv:
             x3 = self.scconv_3(x3)
         elif self.use_dsrconv:
-            x3 = self.dsrconv_1(x3)
+            x3 = self.dsrconv_3(x3)
         self.features.append(x3)
 
         # self.features.append(self.encoder.layer3(self.features[-1]))

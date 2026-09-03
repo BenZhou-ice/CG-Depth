@@ -73,7 +73,8 @@ class Trainer:
                                                         use_lwn=self.opt.use_lwn,
                                                         use_scconv=self.opt.use_scconv,
                                                         use_WtResnet=self.opt.use_WtResnet,
-                                                        use_WtFusion=self.opt.use_WtFusion)
+                                                        use_WtFusion=self.opt.use_WtFusion,
+                                                        use_dsrconv=self.opt.use_dsrconv)
         if(self.opt.use_WtResnet):
             print(self.models["encoder"])
 
@@ -89,7 +90,8 @@ class Trainer:
                                            use_moga=self.opt.use_moga,
                                            use_cga=self.opt.use_cga,
                                            use_wtdown=self.opt.use_wtdown,
-                                           use_bra=self.opt.use_bra)
+                                           use_bra=self.opt.use_bra,
+                                           use_cgru=self.opt.use_cgru)
         else:
             if self.opt.x:
                 print("use R-MSFM3X")
@@ -116,16 +118,16 @@ class Trainer:
             self.models["pose"].to(self.device)
             self.parameters_to_train += list(self.models["pose"].parameters())
 
-        # SCI
-        # ===== SCI 联合训练模块 =====
-        self.sci_net = SCINetwork(stage=3)
-        self.sci_net.to(self.device)
-        self.sci_net.train()  # 设为训练模式，允许参数更新
-
-        # 【关键】将 SCI 的参数加入待优化列表
-        self.parameters_to_train += list(self.sci_net.parameters())
-        # =================================
-        # ======================================================
+        # # SCI
+        # # ===== SCI 联合训练模块 =====
+        # self.sci_net = SCINetwork(stage=3)
+        # self.sci_net.to(self.device)
+        # self.sci_net.train()  # 设为训练模式，允许参数更新
+        #
+        # # 【关键】将 SCI 的参数加入待优化列表
+        # self.parameters_to_train += list(self.sci_net.parameters())
+        # # =================================
+        # # ======================================================
   
         self.optimizer =optim.AdamW(self.parameters_to_train, lr=self.opt.learning_rate, 
                                         weight_decay=self.opt.wdecay)
@@ -279,89 +281,18 @@ class Trainer:
 
     # 原来的process_batch
     """"""
-    # def process_batch(self, inputs):
-    #     """Pass a minibatch through the network and generate images and losses
-    #     """
-    #     for key, ipt in inputs.items():
-    #         inputs[key] = ipt.to(self.device)
-    #
-    #
-    #     features = self.models["encoder"](inputs["color_aug", 0, 0])
-    #     outputs = self.models["depth"](features, iters = self.opt.iters)
-    #     if self.opt.gc:
-    #         aa = self.models["encoder"](inputs["color_aug", -1, 0])
-    #         bb = self.models["depth"](aa, iters = self.opt.iters)
-    #         outputs_1 = {}
-    #         outputs_1[("disp_up", -1, 0)] = bb[("disp_up", 0)]
-    #         outputs_1[("disp_up", -1, 1)] = bb[("disp_up", 1)]
-    #         outputs_1[("disp_up", -1, 2)] = bb[("disp_up", 2)]
-    #         outputs_1[("disp_up", -1, 3)] = bb[("disp_up", 3)]
-    #         outputs_1[("disp_up", -1, 4)] = bb[("disp_up", 4)]
-    #         outputs_1[("disp_up", -1, 5)] = bb[("disp_up", 5)]
-    #
-    #         aa = self.models["encoder"](inputs["color_aug", 1, 0])
-    #         bb = self.models["depth"](aa, iters = self.opt.iters)
-    #         outputs1 = {}
-    #         outputs1[("disp_up", 1, 0)] = bb[("disp_up", 0)]
-    #         outputs1[("disp_up", 1, 1)] = bb[("disp_up", 1)]
-    #         outputs1[("disp_up", 1, 2)] = bb[("disp_up", 2)]
-    #         outputs1[("disp_up", 1, 3)] = bb[("disp_up", 3)]
-    #         outputs1[("disp_up", 1, 4)] = bb[("disp_up", 4)]
-    #         outputs1[("disp_up", 1, 5)] = bb[("disp_up", 5)]
-    #         outputs1.update(outputs_1)
-    #         outputs.update(outputs1)
-    #
-    #
-    #     if self.use_pose_net:
-    #         outputs.update(self.predict_poses2(inputs))
-    #
-    #
-    #     self.generate_images_pred(inputs, outputs, iters = self.opt.iters)
-    #     losses = self.compute_losses(inputs, outputs)
-    #
-    #     return outputs, losses
-
-    # 新的带SCI的process_batch
     def process_batch(self, inputs):
         """Pass a minibatch through the network and generate images and losses
         """
-        # 1. 数据放到 GPU
         for key, ipt in inputs.items():
             inputs[key] = ipt.to(self.device)
 
-        # =================== 新增：对序列所有帧进行 SCI 去噪增强 ===================
-        # =================== 新增：对序列所有帧进行 SCI 去噪增强 ===================
-        if hasattr(self, 'sci_net') and self.sci_net is not None:
-            # 遍历所有帧（0, -1, 1），包括用于 GC 的相邻帧
-            for f_i in self.opt.frame_ids:
-                if f_i == "s":  # 跳过立体帧（未启用）
-                    continue
 
-                original_color = inputs[("color", f_i, 0)]
-                # 提取灰度图输入 SCI
-                gray = original_color.mean(dim=1, keepdim=True)  # [B, 1, H, W]
-
-                # ⚠️ 关键：去掉了 with torch.no_grad()，让梯度可以流入 SCI
-                illu_list, _, _, _, _ = self.sci_net(gray)
-                illu = illu_list[0]  # 取最后一次迭代的光照图 [B, 1, H, W]
-                illu = illu.repeat(1, 3, 1, 1)  # 1通道扩成3通道，对应除 RGB 图
-
-                # Retinex 增强公式：增强图 = 原图 / 光照图
-                enhanced_img = torch.clamp(original_color / (illu + 1e-6), 0.0, 1.0)
-
-                # 将增强后的图像覆盖进 inputs 字典
-                inputs[("color_aug", f_i, 0)] = enhanced_img
-        # ========================================================================
-
-        # 2. 当前帧（0）的深度估计
         features = self.models["encoder"](inputs["color_aug", 0, 0])
-        outputs = self.models["depth"](features, iters=self.opt.iters)
-
-        # 3. GC (Geometry Consistency) 机制 - 来自你的原始代码
+        outputs = self.models["depth"](features, iters = self.opt.iters)
         if self.opt.gc:
-            # 对前一帧 (-1) 进行编码和深度估计
             aa = self.models["encoder"](inputs["color_aug", -1, 0])
-            bb = self.models["depth"](aa, iters=self.opt.iters)
+            bb = self.models["depth"](aa, iters = self.opt.iters)
             outputs_1 = {}
             outputs_1[("disp_up", -1, 0)] = bb[("disp_up", 0)]
             outputs_1[("disp_up", -1, 1)] = bb[("disp_up", 1)]
@@ -370,9 +301,8 @@ class Trainer:
             outputs_1[("disp_up", -1, 4)] = bb[("disp_up", 4)]
             outputs_1[("disp_up", -1, 5)] = bb[("disp_up", 5)]
 
-            # 对后一帧 (1) 进行编码和深度估计
             aa = self.models["encoder"](inputs["color_aug", 1, 0])
-            bb = self.models["depth"](aa, iters=self.opt.iters)
+            bb = self.models["depth"](aa, iters = self.opt.iters)
             outputs1 = {}
             outputs1[("disp_up", 1, 0)] = bb[("disp_up", 0)]
             outputs1[("disp_up", 1, 1)] = bb[("disp_up", 1)]
@@ -383,32 +313,103 @@ class Trainer:
             outputs1.update(outputs_1)
             outputs.update(outputs1)
 
-        # 4. 预测相机位姿
+
         if self.use_pose_net:
             outputs.update(self.predict_poses2(inputs))
 
-        # 5. 生成重建图像（用于后续计算光度损失）
-        self.generate_images_pred(inputs, outputs, iters=self.opt.iters)
 
-
-        # 6. 计算原始 R-MSFM 的光度/平滑损失
+        self.generate_images_pred(inputs, outputs, iters = self.opt.iters)
         losses = self.compute_losses(inputs, outputs)
 
-        # ============ 【新增：补上 SCI 自身损失】 ============
-        # 提取原始输入的灰度图 (用于计算 SCI 的保真度和平滑度)
-        gray_original = inputs[("color", 0, 0)].mean(dim=1, keepdim=True)
-        # 调用 SCI 的 _loss 方法，获得 SCI 的自监督损失
-        sci_loss, _, _ = self.sci_net._loss(gray_original, index=0)
-
-        # 论文中 SCI 的权重因子 (S_weight) 为 0.15
-        losses["sci_loss"] = sci_loss * 0.15
-        # 将 SCI Loss 累加到总 Loss 中
-        losses["loss"] = losses["loss"] + sci_loss * 0.15
-        # ====================================================
-
         return outputs, losses
 
-        return outputs, losses
+    # # 新的带SCI的process_batch
+    # def process_batch(self, inputs):
+    #     """Pass a minibatch through the network and generate images and losses
+    #     """
+    #     # 1. 数据放到 GPU
+    #     for key, ipt in inputs.items():
+    #         inputs[key] = ipt.to(self.device)
+    #
+    #     # =================== 新增：对序列所有帧进行 SCI 去噪增强 ===================
+    #     # =================== 新增：对序列所有帧进行 SCI 去噪增强 ===================
+    #     if hasattr(self, 'sci_net') and self.sci_net is not None:
+    #         # 遍历所有帧（0, -1, 1），包括用于 GC 的相邻帧
+    #         for f_i in self.opt.frame_ids:
+    #             if f_i == "s":  # 跳过立体帧（未启用）
+    #                 continue
+    #
+    #             original_color = inputs[("color", f_i, 0)]
+    #             # 提取灰度图输入 SCI
+    #             gray = original_color.mean(dim=1, keepdim=True)  # [B, 1, H, W]
+    #
+    #             # ⚠️ 关键：去掉了 with torch.no_grad()，让梯度可以流入 SCI
+    #             illu_list, _, _, _, _ = self.sci_net(gray)
+    #             illu = illu_list[0]  # 取最后一次迭代的光照图 [B, 1, H, W]
+    #             illu = illu.repeat(1, 3, 1, 1)  # 1通道扩成3通道，对应除 RGB 图
+    #
+    #             # Retinex 增强公式：增强图 = 原图 / 光照图
+    #             enhanced_img = torch.clamp(original_color / (illu + 1e-6), 0.0, 1.0)
+    #
+    #             # 将增强后的图像覆盖进 inputs 字典
+    #             inputs[("color_aug", f_i, 0)] = enhanced_img
+    #     # ========================================================================
+    #
+    #     # 2. 当前帧（0）的深度估计
+    #     features = self.models["encoder"](inputs["color_aug", 0, 0])
+    #     outputs = self.models["depth"](features, iters=self.opt.iters)
+    #
+    #     # 3. GC (Geometry Consistency) 机制 - 来自你的原始代码
+    #     if self.opt.gc:
+    #         # 对前一帧 (-1) 进行编码和深度估计
+    #         aa = self.models["encoder"](inputs["color_aug", -1, 0])
+    #         bb = self.models["depth"](aa, iters=self.opt.iters)
+    #         outputs_1 = {}
+    #         outputs_1[("disp_up", -1, 0)] = bb[("disp_up", 0)]
+    #         outputs_1[("disp_up", -1, 1)] = bb[("disp_up", 1)]
+    #         outputs_1[("disp_up", -1, 2)] = bb[("disp_up", 2)]
+    #         outputs_1[("disp_up", -1, 3)] = bb[("disp_up", 3)]
+    #         outputs_1[("disp_up", -1, 4)] = bb[("disp_up", 4)]
+    #         outputs_1[("disp_up", -1, 5)] = bb[("disp_up", 5)]
+    #
+    #         # 对后一帧 (1) 进行编码和深度估计
+    #         aa = self.models["encoder"](inputs["color_aug", 1, 0])
+    #         bb = self.models["depth"](aa, iters=self.opt.iters)
+    #         outputs1 = {}
+    #         outputs1[("disp_up", 1, 0)] = bb[("disp_up", 0)]
+    #         outputs1[("disp_up", 1, 1)] = bb[("disp_up", 1)]
+    #         outputs1[("disp_up", 1, 2)] = bb[("disp_up", 2)]
+    #         outputs1[("disp_up", 1, 3)] = bb[("disp_up", 3)]
+    #         outputs1[("disp_up", 1, 4)] = bb[("disp_up", 4)]
+    #         outputs1[("disp_up", 1, 5)] = bb[("disp_up", 5)]
+    #         outputs1.update(outputs_1)
+    #         outputs.update(outputs1)
+    #
+    #     # 4. 预测相机位姿
+    #     if self.use_pose_net:
+    #         outputs.update(self.predict_poses2(inputs))
+    #
+    #     # 5. 生成重建图像（用于后续计算光度损失）
+    #     self.generate_images_pred(inputs, outputs, iters=self.opt.iters)
+    #
+    #
+    #     # 6. 计算原始 R-MSFM 的光度/平滑损失
+    #     losses = self.compute_losses(inputs, outputs)
+    #
+    #     # ============ 【新增：补上 SCI 自身损失】 ============
+    #     # 提取原始输入的灰度图 (用于计算 SCI 的保真度和平滑度)
+    #     gray_original = inputs[("color", 0, 0)].mean(dim=1, keepdim=True)
+    #     # 调用 SCI 的 _loss 方法，获得 SCI 的自监督损失
+    #     sci_loss, _, _ = self.sci_net._loss(gray_original, index=0)
+    #
+    #     # 论文中 SCI 的权重因子 (S_weight) 为 0.15
+    #     losses["sci_loss"] = sci_loss * 0.15
+    #     # 将 SCI Loss 累加到总 Loss 中
+    #     losses["loss"] = losses["loss"] + sci_loss * 0.15
+    #     # ====================================================
+    #
+    #
+    #     return outputs, losses
 
 
     def predict_poses2(self, inputs):

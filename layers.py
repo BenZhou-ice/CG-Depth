@@ -25,26 +25,6 @@ def disp_to_depth(disp, min_depth, max_depth):
  
 
 # kitti
-# def transformation_from_parameters(axisangle, translation, invert=False):
-#     """Convert the network's (axisangle, translation) output into a 4x4 matrix
-#     """
-#     R = rot_from_axisangle(axisangle)
-#     t = translation.clone()
-#
-#     if invert:
-#         R = R.transpose(1, 2)
-#         t *= -1
-#
-#     T = get_translation_matrix(t)
-#
-#     if invert:
-#         M = torch.matmul(R, T)
-#     else:
-#         M = torch.matmul(T, R)
-#
-#     return M
-
-# nuScenes
 def transformation_from_parameters(axisangle, translation, invert=False):
     """Convert the network's (axisangle, translation) output into a 4x4 matrix
     """
@@ -62,8 +42,28 @@ def transformation_from_parameters(axisangle, translation, invert=False):
     else:
         M = torch.matmul(T, R)
 
-    # 只返回前 3 行，将其形状从 [B, 4, 4] 裁剪为 [B, 3, 4]
-    return M[:, :3, :]
+    return M
+
+# nuScenes
+# def transformation_from_parameters(axisangle, translation, invert=False):
+#     """Convert the network's (axisangle, translation) output into a 4x4 matrix
+#     """
+#     R = rot_from_axisangle(axisangle)
+#     t = translation.clone()
+#
+#     if invert:
+#         R = R.transpose(1, 2)
+#         t *= -1
+#
+#     T = get_translation_matrix(t)
+#
+#     if invert:
+#         M = torch.matmul(R, T)
+#     else:
+#         M = torch.matmul(T, R)
+#
+#     # 只返回前 3 行，将其形状从 [B, 4, 4] 裁剪为 [B, 3, 4]
+#     return M[:, :3, :]
 
 
 def get_translation_matrix(translation_vector):

@@ -20,23 +20,24 @@ class RMSFM2Options:
         self.parser.add_argument("--data_path",
                                  type=str,
                                  help="path to the training data",
-                                 # default="../../datasets/kitti_data"
-                                 default="../../datasets/nu_data")
+                                 default="../../datasets/kitti_data"
+                                 # default="../../datasets/nu_data"
+                                 )
         self.parser.add_argument("--log_dir",
                                  type=str,
                                  help="log directory",
-                                 default="./Night_data")
+                                 default="./CG-Depth")
 
         # TRAINING options
         self.parser.add_argument("--model_name",
                                  type=str,
                                  help="the name of the folder to save the model in",
-                                 default="CGDepth-SCI-0")
+                                 default="CGDepth")
         self.parser.add_argument("--split",
                                  type=str,
                                  help="which training split to use",
                                  choices=["eigen_zhou", "eigen_full", "odom", "benchmark", "nuscenes"],
-                                 default="nuscenes")
+                                 default="eigen_zhou")
         self.parser.add_argument("--num_layers",
                                  type=int,
                                  help="number of resnet layers",
@@ -45,11 +46,11 @@ class RMSFM2Options:
         self.parser.add_argument("--dataset",
                                  type=str,
                                  help="dataset to train on",
-                                 default="nuscenes",
+                                 default="kitti",
                                  choices=["kitti", "kitti_odom", "kitti_depth", "kitti_test", "nuscenes"])
         self.parser.add_argument("--png",
                                  help="if set, trains from raw KITTI png files (instead of jpgs)",
-                                 default=False,
+                                 default=True,
                                  action="store_true")
         self.parser.add_argument("--height",
                                  type=int,
@@ -159,8 +160,7 @@ class RMSFM2Options:
         self.parser.add_argument("--eval_split",
                                  type=str,
                                  default="eigen",
-                                 choices=[
-                                    "eigen", "eigen_benchmark", "benchmark", "odom_9", "odom_10"],
+                                 choices=["eigen", "eigen_benchmark", "benchmark", "odom_9", "odom_10"],
                                  help="which split to run eval on")
         self.parser.add_argument("--save_pred_disps",
                                  help="if set saves predicted disparities",
@@ -195,7 +195,7 @@ class RMSFM2Options:
         # my opts
         self.parser.add_argument("--pre_weight",
                                  type=str,
-                                 # default="./R-MSFM-6-X-GC/R-MSFM8bs/models/weights_9_49760",
+                                 default="./R-MSFM-6-X-GC/R-MSFM8bs/models/weights_9_49760",
                                  help="name of model to load")
         # encoder
         self.parser.add_argument("--use_WtFusion",
@@ -211,6 +211,11 @@ class RMSFM2Options:
         self.parser.add_argument("--use_scconv",
                                  help="if set, use ScConv",
                                  default=False,
+                                 action="store_true")
+
+        self.parser.add_argument("--use_dsrconv",
+                                 help="if set, use use_dsrconv",
+                                 default=True,
                                  action="store_true")
 
         self.parser.add_argument("--use_WtResnet",
@@ -234,9 +239,14 @@ class RMSFM2Options:
                                  default=False,
                                  action="store_true")
 
+        self.parser.add_argument("--use_cgru",
+                                 help="if set, use cgru",
+                                 default=True,
+                                 action="store_true")
+
         self.parser.add_argument("--use_wtdown",
                                  help="if set, use wtdown",
-                                 default=False,
+                                 default=True,
                                  action="store_true")
 
     def parse(self):
